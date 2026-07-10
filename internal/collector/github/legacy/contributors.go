@@ -84,23 +84,26 @@ func FetchOrgCount(ctx context.Context, c *githubapi.Client, owner, name string)
 		if login == "" {
 			continue
 		}
-		if strings.HasSuffix(login, "[bot]") {
+		accountType := contributor.GetType()
+		if accountType == "Bot" {
 			continue
 		}
-		userQueries[fmt.Sprint(i)] = fmt.Sprintf("user(login:\"%s\")", login)
+		userQueries[fmt.Sprint(i)] = fmt.Sprintf("node(id:\"%s\")", contributor.GetNodeID())
 	}
 	if len(userQueries) == 0 {
 		// We didn't add any users.
 		return 0, err
 	}
-	r, err := githubapi.BatchQuery[struct{ Company string }](ctx, c, userQueries)
+	r, err := githubapi.BatchQuery[struct {
+		User struct{ Company string } `graphql:"... on User"`
+	}](ctx, c, userQueries)
 	if err != nil {
 		return 0, err
 	}
 	// Extract the Company from each returned field and add it to the org set.
 	orgSet := make(map[string]empty)
 	for _, u := range r {
-		org := u.Company
+		org := u.User.Company
 		if org == "" {
 			continue
 		}
